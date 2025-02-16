@@ -1,49 +1,27 @@
 from flask import Flask, request, jsonify
-from dotenv import load_dotenv
-import os
-from langchain_openai import ChatOpenAI
+from flask_cors import CORS
+from query_llm import get_response  # Your existing chatbot code
 
-
-# Load environment variables
-load_dotenv()
-
-# Flask App Setup
 app = Flask(__name__)
+CORS(app)  # Enable CORS for frontend
 
-# LangChain GPT-4 Model Setup
-api_key = os.getenv("OPENAI_API_KEY")
-llm = ChatOpenAI(
-    model_name="gpt-4",
-    temperature=0.7,
-    openai_api_key=api_key
-)
-
-
-
-
-# 🟡 Root Route (GET)
-@app.route('/', methods=['GET'])
-def home():
-    return jsonify({
-        "message": "Welcome to Startup-AI Chatbot API 🚀",
-        "endpoints": {
-            "POST /api/chat": "Get AI responses for startup questions"
-        }
-    })
-
-# 🟡 Chat Route (POST)
-@app.route('/api/chat', methods=['POST'])
-def chat():
+@app.route('/api/query', methods=['POST'])
+def query():
     data = request.json
-    user_message = data.get('message', '')
+    query = data.get('query')
+    user_id = data.get('userId')
+    
+    response = get_response(query, user_id)
+    return jsonify(response)
 
-    if not user_message:
-        return jsonify({"error": "Message is required"}), 400
+@app.route('/api/analyze', methods=['POST'])
+def analyze():
+    data = request.json
+    startup = data.get('startup')
+    
+    # Use your existing analysis code
+    analysis = analyze_startup(startup)
+    return jsonify(analysis)
 
-    # Get AI response from LangChain
-    response = llm.predict(f"Provide startup advice for: {user_message}")
-    return jsonify({"reply": response})
-
-# Start Flask server
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    app.run(port=5000)

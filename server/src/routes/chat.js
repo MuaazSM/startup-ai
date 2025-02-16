@@ -1,11 +1,8 @@
-// server/src/routes/chat.js
 const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
 const User = require('../models/User');
-const OpenAI = require('openai');
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openaiService = require('../services/openai'); // Import the instance directly
 
 router.use(protect); // Protect all chat routes
 
@@ -21,28 +18,25 @@ router.post('/message', async (req, res) => {
             content: message
         });
 
-        // Get OpenAI response
-        const completion = await openai.chat.completions.create({
-            model: "gpt-3.5-turbo",
-            messages: [{ role: "user", content: message }],
-        });
-
-        const aiResponse = completion.choices[0].message.content;
+        // Get response from Python service
+        const aiResponse = await openaiService.generateResponse(message, userId);
 
         // Store AI response
         user.chatHistory.push({
             role: 'assistant',
-            content: aiResponse
+            content: aiResponse.response
         });
 
         await user.save();
 
         res.json({
             success: true,
-            message: aiResponse,
+            message: aiResponse.response,
+            context: aiResponse.context_used,
             chatHistory: user.chatHistory
         });
     } catch (error) {
+        console.error('Chat error:', error);
         res.status(500).json({
             success: false,
             message: 'Error processing message'
@@ -59,9 +53,30 @@ router.get('/history', async (req, res) => {
             chatHistory: user.chatHistory
         });
     } catch (error) {
+        console.error('History fetch error:', error);
         res.status(500).json({
             success: false,
             message: 'Error fetching chat history'
+        });
+    }
+});
+
+// Clear chat history
+router.delete('/history', async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        user.chatHistory = [];
+        await user.save();
+        
+        res.json({
+            success: true,
+            message: 'Chat history cleared'
+        });
+    } catch (error) {
+        console.error('History clear error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error clearing chat history'
         });
     }
 });
